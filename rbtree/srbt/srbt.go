@@ -390,6 +390,67 @@ func (t *Tree) InsEx(item interface{}) (ok bool) {
 	return // false, not found
 }
 
+func (t *Tree) fixDoubleBlack(br []*node, n *node) {
+	if t.isRoot(n) == true {
+		return
+	}
+	var (
+		d, s *node
+		end  = &sentinel
+	)
+	// the n is not root, then the d is not nil
+	br, d = pop(br)
+	if s = d.oppositeChild(n); s == end {
+		t.fixDoubleBlack(br, d) // push up
+		return
+	}
+	if s.isRed() == true {
+		d.color, s.color = red, black
+		if d.left == s {
+			t.rotateRight(br, d)
+		} else {
+			t.rotateLeft(br, d)
+		}
+		// rotated around d, then we have to fix the br content;
+		// now parent of the d points to the n; but if the d is root
+		// of the tree, then n becomes root; since, the d already
+		// popped, thus we can leave br as it
+		t.fixDoubleBlack(br, n)
+		return
+	}
+	// s is black
+	if s.left.isRed() || s.right.isRed() {
+		if s.left.isRed() == true {
+			if d.left == s {
+				s.left.color, s.color = s.color, d.color
+				t.rotateRight(br, d)
+			} else {
+				s.left.color = d.color
+				t.rotateRight(push(br, d), s)
+				t.rotateLeft(br, d)
+			}
+		} else {
+			// the s.right is red (is not the sentinel)
+			if d.left == s {
+				s.right.color = d.color
+				t.rotateLeft(push(br, d), s)
+				t.rotateRight(br, d)
+			} else {
+				s.right.color, s.color = s.color, d.color
+				t.rotateLeft(br, d)
+			}
+		}
+		d.color = black
+		return
+	}
+	s.color = red
+	if d.isBlack() == true {
+		t.fixDoubleBlack(br, d)
+	} else {
+		d.color = black
+	}
+}
+
 // delete given node with branch of its ancestors
 func (t *Tree) delete(br []*node, n *node) {
 	var (
@@ -406,7 +467,7 @@ func (t *Tree) delete(br []*node, n *node) {
 		}
 		// the n is not root, then the d is not nil
 		if r.isBlack() && n.isBlack() == true {
-			// fixDoubleBlack(n)
+			t.fixDoubleBlack(br, n)
 		} else {
 			// sibling
 			if s := d.oppositeChild(n); s != end {
@@ -425,7 +486,7 @@ func (t *Tree) delete(br []*node, n *node) {
 			// the n is not root, then d is not nil
 			d.replaceChild(n, r)
 			if n.isBlack() && r.isBlack() == true {
-				// fixDoubleBlack(r)
+				t.fixDoubleBlack(sr, r)
 			} else {
 				r.color = black
 			}

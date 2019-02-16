@@ -28,7 +28,13 @@
 // reference. This way any insert, delete and walk
 // operation requires some stack space to keep way
 // of references to root.
-package rbtree
+package srbt
+
+import (
+	"fmt"
+	"github.com/disiqueira/gotree"
+	"github.com/logrusorgru/aurora"
+)
 
 // LessFunc
 type LessFunc func(a, b interface{}) bool
@@ -85,7 +91,8 @@ func (n *node) oppositeChild(x *node) *node {
 // path to it; the n is not the sentinel
 func (n *node) successor(br []*node) (sr []*node, x *node) {
 	var end = &sentinel
-	for x = n.right; x.left != end; x = x.left {
+	sr = br
+	for x = n.left; x.right != end; x = x.right {
 		sr = append(sr, x)
 	}
 	return
@@ -109,6 +116,14 @@ func (n *node) replacement(br []*node) (sr []*node, x *node) {
 	return br, end
 }
 
+func (n *node) insert(less LessFunc, x *node) {
+	if less(x.item, n.item) == true {
+		n.left = x
+	} else {
+		n.right = x
+	}
+}
+
 var sentinel node
 
 // initialize the sentinel
@@ -129,6 +144,11 @@ func pop(br []*node) (nb []*node, n *node) {
 	}
 	n, nb = br[len(br)-1], br[:len(br)-1]
 	return
+}
+
+// pop without popping
+func last(br []*node) *node {
+	return br[len(br)-1]
 }
 
 type Tree struct {
@@ -258,6 +278,9 @@ func (t *Tree) insertNode(br []*node, x *node) {
 		x.color = black // root must be black
 		return
 	}
+	// actual insert
+	last(br).insert(t.less, x)
+	// balance
 	var d, g, u *node // dad, granddad, uncle
 	for t.isRoot(x) == false {
 		br, d = pop(br)
@@ -400,10 +423,14 @@ func (t *Tree) fixDoubleBlack(br []*node, n *node) {
 	)
 	// the n is not root, then the d is not nil
 	br, d = pop(br)
+	printNode("fdb N", n)
+	printNode("fdb D", d)
 	if s = d.oppositeChild(n); s == end {
+		printNode("fdb S [end]", s)
 		t.fixDoubleBlack(br, d) // push up
 		return
 	}
+	printNode("fdb S", s)
 	if s.isRed() == true {
 		d.color, s.color = red, black
 		if d.left == s {
@@ -411,22 +438,20 @@ func (t *Tree) fixDoubleBlack(br []*node, n *node) {
 		} else {
 			t.rotateLeft(br, d)
 		}
-		// rotated around d, then we have to fix the br content;
-		// now parent of the d points to the n; but if the d is root
-		// of the tree, then n becomes root; since, the d already
-		// popped, thus we can leave br as it
-		t.fixDoubleBlack(br, n)
+		t.fixDoubleBlack(push(br, d), n)
 		return
 	}
 	// s is black
 	if s.left.isRed() || s.right.isRed() {
 		if s.left.isRed() == true {
+			printNode("fdb S left (red)", s.left)
 			if d.left == s {
 				s.left.color, s.color = s.color, d.color
+				println("br", len(br))
+				printNode("path", br[0])
 				t.rotateRight(br, d)
 			} else {
-				s.left.color = d.color
-				t.rotateRight(push(br, d), s)
+				s.right.color, s.color = s.color, d.color
 				t.rotateLeft(br, d)
 			}
 		} else {
@@ -451,6 +476,22 @@ func (t *Tree) fixDoubleBlack(br []*node, n *node) {
 	}
 }
 
+func printNode(pfx string, n *node) {
+	if n == nil {
+		println(pfx, "<nil>")
+	} else if n == &sentinel {
+		println(pfx, "[nil]")
+	} else if n.left == &sentinel && n.right == &sentinel {
+		println(pfx, n.item.(int))
+	} else if n.left == &sentinel && n.right != &sentinel {
+		println(pfx, n.item.(int), "[nil]", n.right.item.(int))
+	} else if n.left != &sentinel && n.right == &sentinel {
+		println(pfx, n.item.(int), n.left.item.(int), "[nil]")
+	} else if n.left != &sentinel && n.right != &sentinel {
+		println(pfx, n.item.(int), n.left.item.(int), n.right.item.(int))
+	}
+}
+
 // delete given node with branch of its ancestors
 func (t *Tree) delete(br []*node, n *node) {
 	var (
@@ -458,8 +499,11 @@ func (t *Tree) delete(br []*node, n *node) {
 		d, r *node
 		end  = &sentinel
 	)
-	br, d = pop(br)
 	sr, r = n.replacement(br)
+	br, d = pop(br)
+	printNode("del N", n)
+	printNode("del R", r)
+	printNode("del D", d)
 	if r == end {
 		if d == nil {
 			t.root = end // the n in root, the Tree becomes empty
@@ -467,7 +511,8 @@ func (t *Tree) delete(br []*node, n *node) {
 		}
 		// the n is not root, then the d is not nil
 		if r.isBlack() && n.isBlack() == true {
-			t.fixDoubleBlack(br, n)
+			// the d popped out
+			t.fixDoubleBlack(push(br, d), n)
 		} else {
 			// sibling
 			if s := d.oppositeChild(n); s != end {
@@ -493,7 +538,7 @@ func (t *Tree) delete(br []*node, n *node) {
 		}
 		return
 	}
-	r.item, n.item = n.item, r.item
+	n.item = r.item
 	t.delete(sr, r)
 	return
 }
@@ -885,4 +930,26 @@ func (t *Tree) Descend(from, to interface{}, descendFunc WalkFunc) {
 	default: // [from, to]
 		t.descendFromTo(from, to, descendFunc)
 	}
+}
+
+func ansiColor(n *node) aurora.Color {
+	if n.color == black {
+		return aurora.BlueFg | aurora.BoldFm
+	}
+	return aurora.RedFg
+}
+
+func (n *node) print(pr gotree.Tree) {
+	if n == &sentinel {
+		//pr.Add(aurora.Colorize("[nil]", ansiColor(n)).String())
+		return
+	}
+	np := pr.Add(aurora.Colorize(n.item, ansiColor(n)).String())
+	n.left.print(np)
+	n.right.print(np)
+}
+
+func (t *Tree) Print(pr gotree.Tree) {
+	pr.Add(fmt.Sprintf("size: %d", t.size))
+	t.root.print(pr)
 }

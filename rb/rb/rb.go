@@ -25,12 +25,6 @@
 
 package rb
 
-import (
-	"fmt"
-
-	"github.com/logrusorgru/aurora"
-)
-
 type color bool
 
 const (
@@ -887,35 +881,4 @@ func (t *Tree) Descend(from, to interface{}, descendFunc WalkFunc) {
 	default: // [from, to]
 		t.descendFromTo(from, to, descendFunc)
 	}
-}
-
-type Printer interface {
-	Add(string) Printer
-}
-
-func (n *node) print(pr Printer) {
-	if n == nil {
-		return
-	}
-	var d string
-	if n.isLeft() == true {
-		d = "l "
-	} else {
-		d = "r "
-	}
-	s := fmt.Sprint(d, n.k)
-	var sub Printer
-	if n.c == red {
-		sub = pr.Add(aurora.Red(s).String())
-	} else {
-		sub = pr.Add(aurora.Blue(s).Bold().String())
-	}
-	n.l.print(sub)
-	n.r.print(sub)
-}
-
-func (t *Tree) Print(pr Printer) {
-	s := fmt.Sprintf("[%d]", t.size)
-	tree := pr.Add(s)
-	t.r.print(tree)
 }

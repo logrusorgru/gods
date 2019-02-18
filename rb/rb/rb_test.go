@@ -29,8 +29,6 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
-
-	"github.com/disiqueira/gotree"
 )
 
 const (
@@ -286,14 +284,6 @@ func TestTree_InsEx(t *testing.T) {
 
 }
 
-type Print struct {
-	gotree.Tree
-}
-
-func (t *Print) Add(text string) Printer {
-	return &Print{t.Tree.Add(text)}
-}
-
 func TestTree_Add(t *testing.T) {
 	// Add(k, v interface{}) (ok bool)
 
@@ -383,13 +373,6 @@ func TestTree_Get(t *testing.T) {
 	}
 
 }
-
-// ////////////////////////////////////////////////////////////////
-// var pt = &Print{gotree.New("red-black")}
-// tr.Print(pt)
-// fmt.Println(pt.Print())
-// ////////////////////////////////////////////////////////////////
-// t.Fatal("fatality")
 
 func TestTree_Del(t *testing.T) {
 	// Del(k interface{}) (v interface{}, ok bool)
@@ -644,13 +627,6 @@ func TestTree_Walk(t *testing.T) {
 	}
 
 }
-
-// ////////////////////////////////////////////////////////////////
-// var pt = &Print{gotree.New("red-black")}
-// tr.Print(pt)
-// fmt.Println(pt.Print())
-// ////////////////////////////////////////////////////////////////
-// t.Fatal("fatality")
 
 func TestTree_Ascend(t *testing.T) {
 	// Ascend(from, to interface{}, ascendFunc WalkFunc)

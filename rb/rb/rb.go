@@ -26,6 +26,8 @@
 package rb
 
 import (
+	"fmt"
+
 	"github.com/logrusorgru/aurora"
 )
 
@@ -95,7 +97,7 @@ func (n *node) dad() *node {
 }
 
 func (n *node) sibling() *node {
-	if left := n.dad().left(); left == n {
+	if left := n.dad().left(); left != n {
 		return left
 	}
 	return n.dad().right()
@@ -127,16 +129,6 @@ func (n *node) setRed() {
 	return
 }
 
-func (n *node) swapColors(x *node) {
-	if n == nil {
-		x.setBlack()
-	} else if x == nil {
-		n.setBlack()
-	} else {
-		n.c, x.c = x.c, n.c
-	}
-}
-
 // n becomes red, its children becomes black
 func (n *node) pushBlack() {
 	n.setRed()
@@ -149,15 +141,11 @@ func (n *node) successor() (r *node) {
 	if n.l != nil {
 		for r = n.l; r.r != nil; r = r.r {
 		}
-	} else {
+	} else if n.r != nil {
 		for r = n.r; r.l != nil; r = r.l {
 		}
 	}
 	return
-}
-
-func (n *node) isTrailing() bool {
-	return n == nil || (n.l == nil && n.r == nil)
 }
 
 func (n *node) replaceChild(old, new *node) {
@@ -181,13 +169,6 @@ func (n *node) copy(x *node) {
 	n.k, n.v = x.k, x.v
 }
 
-func (n *node) nonNilChild() *node {
-	if n.l == nil {
-		return n.r
-	}
-	return n.l
-}
-
 type Tree struct {
 	r *node
 
@@ -198,10 +179,18 @@ type Tree struct {
 	size int
 }
 
+func New(less LessFunc, equal EqualFunc, zero ZeroFunc) (t *Tree) {
+	t = new(Tree)
+	t.less = less
+	t.equal = equal
+	t.zero = zero
+	return
+}
+
 // findInsertNode finds node to insert to
 func (t *Tree) findInsertNode(d *node, k interface{}) *node {
 	for p, less := d, t.less; p != nil; { // p - place
-		if less(p.k, k) == true {
+		if less(k, p.k) {
 			p, d = p.l, p // left side
 		} else {
 			p, d = p.r, p // right side
@@ -238,17 +227,18 @@ func (t *Tree) rightRotate(n *node) {
 	if n.d == nil {
 		t.r = pivot
 		pivot.c = black
+		pivot.d = nil
 	} else {
 		pivot.d = n.d
-		if n.isLeft() == true {
+		if n.isLeft() {
 			n.d.l = pivot
 		} else {
 			n.d.r = pivot
 		}
 	}
 	n.l = pivot.r
-	if n.r != nil {
-		n.r.d = n
+	if pivot.r != nil {
+		pivot.r.d = n
 	}
 	n.d = pivot
 	pivot.r = n
@@ -259,9 +249,10 @@ func (t *Tree) leftRotate(n *node) {
 	if n.d == nil {
 		t.r = pivot
 		pivot.c = black
+		pivot.d = nil
 	} else {
 		pivot.d = n.d
-		if n.isLeft() == true {
+		if n.isLeft() {
 			n.d.l = pivot
 		} else {
 			n.d.r = pivot
@@ -300,24 +291,25 @@ func (t *Tree) insertRightLeftBalancing(g, d, n *node) {
 // balance tree after insert, the d is red
 func (t *Tree) insertBalancing(d, n *node) {
 	var g, u *node
-	for t.isRoot(n) == false && d.isRed() == true {
-		if u = n.uncle(); u.isRed() == true {
-			if u.isRed() == true {
-				g = d.dad()
-				g.pushBlack()
-				d, n = g.dad(), g
-				continue
-			}
+	for !t.isRoot(n) {
+		if !d.isRed() {
+			return
+		}
+		g = d.dad()
+		if u = n.uncle(); u.isRed() {
+			g.pushBlack()
+			d, n = g.dad(), g
+			continue
 		} else { // us is black (or nil)
 			// not the loop
-			if d.isLeft() == true {
-				if n.isLeft() == true {
+			if d.isLeft() {
+				if n.isLeft() {
 					t.insertLeftLeftBalancing(g, d)
 				} else { // n is right
 					t.insertLeftRightBalancing(g, d, n)
 				}
 			} else { // d is right
-				if n.isRight() == true {
+				if n.isRight() {
 					t.insertRightRightBalancing(g, d)
 				} else { // n is left
 					t.insertRightLeftBalancing(g, d, n)
@@ -332,6 +324,7 @@ func (t *Tree) insertBalancing(d, n *node) {
 // insert node to the tree and add pointer to it
 // to the d
 func (t *Tree) insertNode(d, n *node) {
+	t.size++
 	if d == nil {
 		t.r = n     // first element of the tree
 		n.c = black // root must be black
@@ -340,11 +333,12 @@ func (t *Tree) insertNode(d, n *node) {
 	// n already points to the d; required branch
 	// (left or right) is nil and its guarantee by
 	// findInsertNode
-	if t.less(n.k, d.k) == true {
+	if t.less(n.k, d.k) {
 		d.l = n // left (less)
 	} else {
 		d.r = n // right (greater or equal)
 	}
+	n.d = d
 	t.insertBalancing(d, n)
 }
 
@@ -426,25 +420,32 @@ func (t *Tree) fixDoubleBlack(x *node) {
 			d = x.d
 		)
 		if s == nil {
-			// t.fixDoubleBlack(d)
-			// return
 			x = d
 			continue // no recursion
 		}
 		if s.isRed() {
 			d.c = red
 			s.c = black
-			if s.isLeft() {
-				t.rightRotate(d)
-			} else {
+			if s.isRight() {
 				t.leftRotate(d)
+			} else {
+				t.rightRotate(d)
 			}
-			// t.fixDoubleBlack(x)
-			// return
 			continue // no recursion
 		}
+		// the s is black
 		if s.hasRedChild() {
-			if s.l.isRed() {
+			if s.r.isRed() {
+				if s.isLeft() {
+					s.r.c = d.c
+					t.leftRotate(s)
+					t.rightRotate(d)
+				} else {
+					s.r.c = s.c
+					s.c = d.c
+					t.leftRotate(d)
+				}
+			} else { // left is red
 				if s.isLeft() {
 					s.l.c = s.c
 					s.c = d.c
@@ -454,24 +455,12 @@ func (t *Tree) fixDoubleBlack(x *node) {
 					t.rightRotate(s)
 					t.leftRotate(d)
 				}
-			} else { // right is red
-				if s.isLeft() {
-					s.r.c = d.c
-					t.leftRotate(s)
-					t.rightRotate(d)
-				} else {
-					s.r.c = s.c
-					s.c = s.c
-					t.leftRotate(d)
-				}
 			}
 			d.c = black
 			return
 		}
 		s.c = red
 		if d.c == black {
-			// t.fixDoubleBlack(d)
-			// return
 			x = d
 			continue
 		}
@@ -515,7 +504,6 @@ func (t *Tree) delBalancing(v *node) {
 			return
 		}
 		v.copy(u)
-		// t.delBalancing(u)
 		v = u // no recursion
 	}
 }
@@ -589,15 +577,18 @@ func (t *Tree) Clear() {
 type WalkFunc func(k, v interface{}) (next bool)
 
 func pop(ns []*node) (xs []*node, n *node) {
-	n, xs = ns[len(ns)-1], ns[:len(xs)-1]
+	if len(ns) == 0 {
+		return ns, nil
+	}
+	n, xs = ns[len(ns)-1], ns[:len(ns)-1]
 	return
 }
 
 // Walk elements of the Tree without any order.
 func (t *Tree) Walk(walkFunc WalkFunc) {
 	var stack []*node
-	for n := t.r; n != nil; n = n.l {
-		if walkFunc(n.k, n.v) == false {
+	for n := t.r; n != nil; {
+		if !walkFunc(n.k, n.v) {
 			return
 		}
 		// push right
@@ -615,35 +606,42 @@ func (t *Tree) Walk(walkFunc WalkFunc) {
 
 // [from, +inf)
 func (t *Tree) ascendFrom(from interface{}, ascendFunc WalkFunc) {
-	var (
-		_, n  = t.findNode(from)
-		stack []*node
-	)
+	var n *node
+	if _, n = t.findNode(from); n == nil {
+		if n = t.minNode(); n != nil && t.less(n.k, from) {
+			return
+		}
+	}
 	for n != nil {
-		if ascendFunc(n.k, n.v) == false {
+		if !ascendFunc(n.k, n.v) {
 			return
 		}
 		if n.r != nil {
 			n = n.r
 			for n.l != nil {
-				stack = append(stack, n)
 				n = n.l
 			}
-			continue // the n pushed and popped virtually
+			continue
 		}
-		stack, n = pop(stack)
+		for ; ; n = n.d {
+			if n.d == nil {
+				return
+			}
+			if n.d.l == n {
+				n = n.d
+				break
+			}
+		}
 	}
 }
 
 // (-inf, to]
 func (t *Tree) ascendTo(to interface{}, ascendFunc WalkFunc) {
 	var (
-		n     = t.minNode()
-		less  = t.less
-		stack []*node
+		n    = t.minNode()
+		less = t.less
 	)
 	for n != nil {
-		// n.k < to is ok, to < n.k is the end
 		if less(to, n.k) {
 			return // that's all
 		}
@@ -653,22 +651,33 @@ func (t *Tree) ascendTo(to interface{}, ascendFunc WalkFunc) {
 		if n.r != nil {
 			n = n.r
 			for n.l != nil {
-				stack = append(stack, n)
 				n = n.l
 			}
-			continue // the n pushed and popped virtually
+			continue
 		}
-		stack, n = pop(stack)
+		for ; ; n = n.d {
+			if n.d == nil {
+				return
+			}
+			if n.d.l == n {
+				n = n.d
+				break
+			}
+		}
 	}
 }
 
 // [from, to]
 func (t *Tree) ascendFromTo(from, to interface{}, ascendFunc WalkFunc) {
 	var (
-		_, n  = t.findNode(from)
-		less  = t.less
-		stack []*node
+		n    *node
+		less = t.less
 	)
+	if _, n = t.findNode(from); n == nil {
+		if n = t.minNode(); n != nil && t.less(n.k, from) {
+			return
+		}
+	}
 	for n != nil {
 		if less(to, n.k) {
 			return // that's all
@@ -679,34 +688,44 @@ func (t *Tree) ascendFromTo(from, to interface{}, ascendFunc WalkFunc) {
 		if n.r != nil {
 			n = n.r
 			for n.l != nil {
-				stack = append(stack, n)
 				n = n.l
 			}
-			continue // the n pushed and popped virtually
+			continue
 		}
-		stack, n = pop(stack)
+		for ; ; n = n.d {
+			if n.d == nil {
+				return
+			}
+			if n.d.l == n {
+				n = n.d
+				break
+			}
+		}
 	}
 }
 
 // (-inf, +inf)
 func (t *Tree) ascend(ascendFunc WalkFunc) {
-	var (
-		n     = t.minNode()
-		stack []*node
-	)
-	for n != nil {
+	for n := t.minNode(); n != nil; {
 		if !ascendFunc(n.k, n.v) {
 			return
 		}
 		if n.r != nil {
 			n = n.r
 			for n.l != nil {
-				stack = append(stack, n)
 				n = n.l
 			}
-			continue // the n pushed and popped virtually
+			continue
 		}
-		stack, n = pop(stack)
+		for ; ; n = n.d {
+			if n.d == nil {
+				return
+			}
+			if n.d.l == n {
+				n = n.d
+				break
+			}
+		}
 	}
 }
 
@@ -730,10 +749,12 @@ func (t *Tree) Ascend(from, to interface{}, ascendFunc WalkFunc) {
 
 // [from, -inf) (reversed)
 func (t *Tree) descendFrom(from interface{}, descendFunc WalkFunc) {
-	var (
-		_, n  = t.findNode(from)
-		stack []*node
-	)
+	var n *node
+	if _, n = t.findNode(from); n == nil {
+		if n = t.maxNode(); n != nil && t.less(from, n.k) {
+			return
+		}
+	}
 	for n != nil {
 		if !descendFunc(n.k, n.v) {
 			return
@@ -741,21 +762,27 @@ func (t *Tree) descendFrom(from interface{}, descendFunc WalkFunc) {
 		if n.l != nil {
 			n = n.l
 			for n.r != nil {
-				stack = append(stack, n)
 				n = n.r
 			}
-			continue // the n pushed and popped virtually
+			continue
 		}
-		stack, n = pop(stack)
+		for ; ; n = n.d {
+			if n.d == nil {
+				return
+			}
+			if n.d.r == n {
+				n = n.d
+				break
+			}
+		}
 	}
 }
 
 // (+inf, to] (reversed)
 func (t *Tree) descendTo(to interface{}, descendFunc WalkFunc) {
 	var (
-		n     = t.maxNode()
-		less  = t.less
-		stack []*node
+		n    = t.maxNode()
+		less = t.less
 	)
 	for n != nil {
 		if less(n.k, to) {
@@ -767,22 +794,33 @@ func (t *Tree) descendTo(to interface{}, descendFunc WalkFunc) {
 		if n.l != nil {
 			n = n.l
 			for n.r != nil {
-				stack = append(stack, n)
 				n = n.r
 			}
-			continue // the n pushed and popped virtually
+			continue
 		}
-		stack, n = pop(stack)
+		for ; ; n = n.d {
+			if n.d == nil {
+				return
+			}
+			if n.d.r == n {
+				n = n.d
+				break
+			}
+		}
 	}
 }
 
 // [from, to] (reversed)
 func (t *Tree) descendFromTo(from, to interface{}, descendFunc WalkFunc) {
 	var (
-		_, n  = t.findNode(from)
-		less  = t.less
-		stack []*node
+		n    *node
+		less = t.less
 	)
+	if _, n = t.findNode(from); n == nil {
+		if n = t.maxNode(); n != nil && t.less(from, n.k) {
+			return
+		}
+	}
 	for n != nil {
 		if less(n.k, to) {
 			return // that's all
@@ -793,34 +831,44 @@ func (t *Tree) descendFromTo(from, to interface{}, descendFunc WalkFunc) {
 		if n.l != nil {
 			n = n.l
 			for n.r != nil {
-				stack = append(stack, n)
 				n = n.r
 			}
-			continue // the n pushed and popped virtually
+			continue
 		}
-		stack, n = pop(stack)
+		for ; ; n = n.d {
+			if n.d == nil {
+				return
+			}
+			if n.d.r == n {
+				n = n.d
+				break
+			}
+		}
 	}
 }
 
 // (-inf, +inf) (reversed)
 func (t *Tree) descend(descendFunc WalkFunc) {
-	var (
-		n     = t.maxNode()
-		stack []*node
-	)
-	for n != nil {
-		if descendFunc(n.k, n.v) == false {
+	for n := t.maxNode(); n != nil; {
+		if !descendFunc(n.k, n.v) {
 			return
 		}
 		if n.l != nil {
 			n = n.l
 			for n.r != nil {
-				stack = append(stack, n)
 				n = n.r
 			}
-			continue // the n pushed and popped virtually
+			continue
 		}
-		stack, n = pop(stack)
+		for ; ; n = n.d {
+			if n.d == nil {
+				return
+			}
+			if n.d.r == n {
+				n = n.d
+				break
+			}
+		}
 	}
 }
 
@@ -845,24 +893,29 @@ type Printer interface {
 	Add(string) Printer
 }
 
-func ansiColor(c color) aurora.Color {
-	if c == black {
-		return aurora.BlueFg | aurora.BoldFm
-	}
-	return aurora.RedFg | aurora.BoldFm
-}
-
 func (n *node) print(pr Printer) {
 	if n == nil {
-		pr.Add(aurora.Colorize("[nil]", ansiColor(n.color())).String())
 		return
 	}
-	x := pr.Add(aurora.Colorize(n.k, ansiColor(n.color())).String())
-	n.l.print(x)
-	n.r.print(x)
+	var d string
+	if n.isLeft() == true {
+		d = "l "
+	} else {
+		d = "r "
+	}
+	s := fmt.Sprint(d, n.k)
+	var sub Printer
+	if n.c == red {
+		sub = pr.Add(aurora.Red(s).String())
+	} else {
+		sub = pr.Add(aurora.Blue(s).Bold().String())
+	}
+	n.l.print(sub)
+	n.r.print(sub)
 }
 
 func (t *Tree) Print(pr Printer) {
-	tree := pr.Add(aurora.Blue(t.size).Bold().String())
+	s := fmt.Sprintf("[%d]", t.size)
+	tree := pr.Add(s)
 	t.r.print(tree)
 }

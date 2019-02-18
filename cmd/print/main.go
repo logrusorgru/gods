@@ -51,7 +51,7 @@ type Tree struct {
 }
 
 func (t *Tree) Add(text string) rb.Printer {
-	return t.Tree.Add(text)
+	return &Tree{t.Tree.Add(text)}
 }
 
 func main() {
@@ -61,13 +61,13 @@ func main() {
 		tree.Ins(i, 0)
 	}
 
-	var pt = Tree{gotree.New("rb-tree")}
+	var pt = &Tree{gotree.New("rb-tree")}
 	tree.Print(pt)
 
 	fmt.Println(pt.Print())
 	// pretty.Println(tree)
 
-	for _, i := range []int{
+	var fizz = []int{
 		1,
 		2,
 		4,
@@ -76,33 +76,45 @@ func main() {
 		8,
 		10,
 		11,
-		// 13,
-		// 14,
-		// 16,
-		// 17,
-		// 19,
-		// 20,
-	} {
-		fmt.Println("DELETE", i)
-		tree.Del(i)
+		13,
+		14,
+		16,
+		17,
+		19,
+		20,
 	}
 
-	for i := 0; i <= 20; i++ {
-		if i%3 == 0 {
-			continue
+	for i := 0; i < 2; i++ {
+		for _, i := range fizz {
+			tree.Del(i)
 		}
-		_ = i
+		{
+			var pt = &Tree{gotree.New("rb-tree")}
+			tree.Print(pt)
+			fmt.Println(pt.Print())
+		}
+		for _, i := range fizz {
+			tree.Ins(i, 0)
+		}
+		{
+			var pt = &Tree{gotree.New("rb-tree")}
+			tree.Print(pt)
+			fmt.Println(pt.Print())
+		}
 	}
+
+	_ = pretty.Print
 
 	{
+		for i := 0; i <= 20; i++ {
+			tree.Del(i)
+		}
 
-		var pt = Tree{gotree.New("rb-tree")}
+		var pt = &Tree{gotree.New("rb-tree")}
 		tree.Print(pt)
 
 		fmt.Println(pt.Print())
 		// pretty.Println(tree)
 	}
-
-	_ = pretty.Print
 
 }

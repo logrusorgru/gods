@@ -156,10 +156,6 @@ func (n *node) hasRedChild() bool {
 }
 
 func (n *node) copy(x *node) {
-	if x == nil {
-		n.k, n.v = nil, nil
-		return
-	}
 	n.k, n.v = x.k, x.v
 }
 
@@ -578,24 +574,16 @@ func pop(ns []*node) (xs []*node, n *node) {
 	return
 }
 
+func walk(n *node, walkFunc WalkFunc) bool {
+	if n == nil {
+		return true
+	}
+	return walkFunc(n.k, n.v) && walk(n.l, walkFunc) && walk(n.r, walkFunc)
+}
+
 // Walk elements of the Tree without any order.
 func (t *Tree) Walk(walkFunc WalkFunc) {
-	var stack []*node
-	for n := t.r; n != nil; {
-		if !walkFunc(n.k, n.v) {
-			return
-		}
-		// push right
-		if n.r != nil {
-			stack = append(stack, n.r)
-		}
-		if n.l != nil {
-			n = n.l // walk left
-			continue
-		}
-		// walk right
-		stack, n = pop(stack)
-	}
+	walk(t.r, walkFunc) // recursive
 }
 
 // [from, +inf)

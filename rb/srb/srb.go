@@ -25,6 +25,11 @@
 
 package srb
 
+import (
+	"fmt"
+	"github.com/logrusorgru/aurora"
+)
+
 type color bool
 
 const (
@@ -68,20 +73,6 @@ func (n *node) isRed() bool {
 	return n.color() == red
 }
 
-// func (n *node) left() *node {
-// 	if n == nil {
-// 		return nil
-// 	}
-// 	return n.l
-// }
-
-// func (n *node) right() *node {
-// 	if n == nil {
-// 		return nil
-// 	}
-// 	return n.r
-// }
-
 func (n *node) setBlack() {
 	if n != nil {
 		n.c = black
@@ -105,6 +96,7 @@ func (n *node) pushBlack() {
 
 // left -> right, right, right,...
 func (n *node) successor() (ss []*node, r *node) {
+	ss = append(ss, n)
 	if n.l != nil {
 		for r = n.l; r.r != nil; r = r.r {
 			ss = append(ss, r)
@@ -159,6 +151,14 @@ func New(less LessFunc, equal EqualFunc, zero ZeroFunc) (t *Tree) {
 	return
 }
 
+var verbose bool
+
+func print(args ...interface{}) {
+	if verbose {
+		fmt.Println(args...)
+	}
+}
+
 // findInsertNode finds node to insert to
 func (t *Tree) findInsertNode(st []*node, k interface{}) ([]*node, *node) {
 	var (
@@ -174,6 +174,8 @@ func (t *Tree) findInsertNode(st []*node, k interface{}) ([]*node, *node) {
 			p = p.r // right side
 		}
 	}
+	// TODO (kostyarin): avoid the pop
+	st, p = pop(st)
 	return st, p
 }
 
@@ -398,18 +400,23 @@ func (t *Tree) Add(k, v interface{}) (ok bool) {
 }
 
 func (t *Tree) fixDoubleBlack(st []*node, x *node) {
+	println("fixDoubleBlack", len(st), x.k.(int))
 	var s, d *node
 	for {
+		println("fixDoubleBlack: loop", len(st), x.k.(int))
 		if t.isRoot(x) {
 			return
 		}
 		st, d = pop(st)
 		s = d.opposite(x)
 		if s == nil {
+			println("fixDoubleBlack: s is nil")
 			x = d
 			continue // no recursion
 		}
+		println("fixDoubleBlack: s is ", s.k.(int), s.c)
 		if s.isRed() {
+			println("fixDoubleBlack: s is red")
 			d.c = red
 			s.c = black
 			if d.r == s {
@@ -421,22 +428,29 @@ func (t *Tree) fixDoubleBlack(st []*node, x *node) {
 		}
 		// the s is black
 		if s.hasRedChild() {
+			println("fixDoubleBlack: s has red child")
 			if s.r.isRed() {
+				println("fixDoubleBlack: right")
 				if d.l == s {
+					println("fixDoubleBlack: right->left")
 					s.r.c = d.c
 					t.leftRotate(append(st, d), s)
 					t.rightRotate(st, d)
 				} else {
+					println("fixDoubleBlack: right->right")
 					s.r.c = s.c
 					s.c = d.c
 					t.leftRotate(st, d)
 				}
 			} else { // left is red
+				println("fixDoubleBlack: left")
 				if d.l == s {
+					println("fixDoubleBlack: left->left")
 					s.l.c = s.c
 					s.c = d.c
 					t.rightRotate(st, d)
 				} else {
+					println("fixDoubleBlack: left->right")
 					s.l.c = d.c
 					t.rightRotate(append(st, d), s)
 					t.leftRotate(st, d)
@@ -445,23 +459,29 @@ func (t *Tree) fixDoubleBlack(st []*node, x *node) {
 			d.c = black
 			return
 		}
-		s.c = red
-		if d.c == black {
+		println("fixDoubleBlack: s is black and has no red child", s.k.(int))
+		s.setRed()
+		println("set red", s.k.(int))
+		if d.isBlack() {
+			println("fixDoubleBlack: s is black, has no red child, d is black")
 			x = d
 			continue
 		}
-		d.c = black
+		d.setBlack()
+		println("set black", d.k.(int))
 		return
 	}
 }
 
 // delete and balance the Tree
 func (t *Tree) delBalancing(st []*node, v *node) {
+	println("delBalancing", len(st), v.k.(int))
 	var (
 		d, u *node
 		ss   []*node
 	)
 	for {
+		println("delBalancing: loop", len(st), v.k.(int))
 		ss, u = v.successor()
 		_, d = pop(st) // don't overwrite the st
 		if u == nil {
@@ -470,6 +490,7 @@ func (t *Tree) delBalancing(st []*node, v *node) {
 				return
 			}
 			if u.isBlack() && v.isBlack() {
+				println("both are black")
 				t.fixDoubleBlack(st, v)
 			} else {
 				if s := d.opposite(v); s != nil {
@@ -480,6 +501,7 @@ func (t *Tree) delBalancing(st []*node, v *node) {
 			return
 		}
 		if v.l == nil || v.r == nil {
+			println("has nil child")
 			if t.isRoot(v) {
 				v.copy(u)
 				v.l, v.r = nil, nil
@@ -487,15 +509,17 @@ func (t *Tree) delBalancing(st []*node, v *node) {
 			}
 			d.replaceChild(v, u)
 			if u.isBlack() && v.isBlack() {
+				println("both are black (2)")
 				t.fixDoubleBlack(st, u)
 				return
 			}
 			u.c = black
 			return
 		}
+		println("tail")
 		v.copy(u)
-		v = u   // no recursion
-		st = ss // change st
+		v = u                  // no recursion
+		st = append(st, ss...) // change st
 	}
 }
 
@@ -513,10 +537,13 @@ func (t *Tree) Get(k interface{}) (v interface{}, ok bool) {
 }
 
 func (t *Tree) Del(k interface{}) (v interface{}, ok bool) {
+	println("Del", k.(int))
 	var st, n = t.findNode(k)
 	if n == nil {
+		println("Del: not found", k.(int))
 		return nil, false // does not exist
 	}
+	println("Del: found", k.(int))
 	v, ok = n.v, true
 	t.size--              //reduce
 	t.delBalancing(st, n) // delete & balance
@@ -589,38 +616,51 @@ func (t *Tree) Walk(walkFunc WalkFunc) {
 	walk(t.r, walkFunc) // recursive
 }
 
+func (t *Tree) findAscendNode(k interface{}) (st []*node, n *node) {
+	var (
+		less  = t.less
+		equal = t.equal
+	)
+	for n = t.r; n != nil; {
+		switch {
+		case equal(k, n.k):
+			return
+		case less(k, n.k):
+			st = append(st, n)
+			n = n.l
+		default:
+			n = n.r
+		}
+	}
+	return
+}
+
 // [from, +inf)
 func (t *Tree) ascendFrom(from interface{}, ascendFunc WalkFunc) {
-	var (
-		st, n = t.findNode(from)
-		d     *node
-	)
+	var st, n = t.findAscendNode(from)
 	if n == nil {
 		if st, n = t.minNode(); n != nil && t.less(n.k, from) {
 			return
 		}
 	}
+	var d *node
 	for n != nil {
 		if !ascendFunc(n.k, n.v) {
 			return
 		}
 		if n.r != nil {
-			st = append(st, n)
 			n = n.r
 			for n.l != nil {
 				st = append(st, n)
 				n = n.l
 			}
-			continue
-		}
-		for {
-			st, d = pop(st)
-			if d == nil {
+		} else {
+			if st, d = pop(st); d == nil {
 				return
-			}
-			if d.l == n {
+			} else if d.r == n {
+				st, n = pop(st)
+			} else {
 				n = d
-				break
 			}
 		}
 	}
@@ -631,7 +671,6 @@ func (t *Tree) ascendTo(to interface{}, ascendFunc WalkFunc) {
 	var (
 		st, n = t.minNode()
 		less  = t.less
-		d     *node
 	)
 	for n != nil {
 		if less(to, n.k) {
@@ -641,23 +680,13 @@ func (t *Tree) ascendTo(to interface{}, ascendFunc WalkFunc) {
 			return
 		}
 		if n.r != nil {
-			st = append(st, n)
 			n = n.r
 			for n.l != nil {
 				st = append(st, n)
 				n = n.l
 			}
-			continue
-		}
-		for {
-			st, d = pop(st)
-			if d == nil {
-				return
-			}
-			if d.l == n {
-				n = d
-				break
-			}
+		} else {
+			st, n = pop(st)
 		}
 	}
 }
@@ -665,9 +694,8 @@ func (t *Tree) ascendTo(to interface{}, ascendFunc WalkFunc) {
 // [from, to]
 func (t *Tree) ascendFromTo(from, to interface{}, ascendFunc WalkFunc) {
 	var (
-		st, n = t.findNode(from)
+		st, n = t.findAscendNode(from)
 		less  = t.less
-		d     *node
 	)
 	if n == nil {
 		if st, n = t.minNode(); n != nil && t.less(n.k, from) {
@@ -682,52 +710,31 @@ func (t *Tree) ascendFromTo(from, to interface{}, ascendFunc WalkFunc) {
 			return
 		}
 		if n.r != nil {
-			st = append(st, n)
 			n = n.r
 			for n.l != nil {
 				st = append(st, n)
 				n = n.l
 			}
-			continue
-		}
-		for {
-			st, d = pop(st)
-			if d == nil {
-				return
-			}
-			if d.l == n {
-				n = d
-				break
-			}
+		} else {
+			st, n = pop(st)
 		}
 	}
 }
 
 // (-inf, +inf)
 func (t *Tree) ascend(ascendFunc WalkFunc) {
-	var d *node
 	for st, n := t.minNode(); n != nil; {
 		if !ascendFunc(n.k, n.v) {
 			return
 		}
 		if n.r != nil {
-			st = append(st, n)
 			n = n.r
 			for n.l != nil {
 				st = append(st, n)
 				n = n.l
 			}
-			continue
-		}
-		for {
-			st, d = pop(st)
-			if d == nil {
-				return
-			}
-			if d.l == n {
-				n = d
-				break
-			}
+		} else {
+			st, n = pop(st)
 		}
 	}
 }
@@ -750,12 +757,28 @@ func (t *Tree) Ascend(from, to interface{}, ascendFunc WalkFunc) {
 	}
 }
 
+func (t *Tree) findDescendNode(k interface{}) (st []*node, n *node) {
+	var (
+		less  = t.less
+		equal = t.equal
+	)
+	for n = t.r; n != nil; {
+		switch {
+		case equal(k, n.k):
+			return
+		case less(k, n.k):
+			n = n.l
+		default:
+			st = append(st, n)
+			n = n.r
+		}
+	}
+	return
+}
+
 // [from, -inf) (reversed)
 func (t *Tree) descendFrom(from interface{}, descendFunc WalkFunc) {
-	var (
-		st, n = t.findNode(from)
-		d     *node
-	)
+	var st, n = t.findDescendNode(from)
 	if n == nil {
 		if st, n = t.maxNode(); n != nil && t.less(from, n.k) {
 			return
@@ -766,23 +789,13 @@ func (t *Tree) descendFrom(from interface{}, descendFunc WalkFunc) {
 			return
 		}
 		if n.l != nil {
-			st = append(st, n)
 			n = n.l
 			for n.r != nil {
 				st = append(st, n)
 				n = n.r
 			}
-			continue
-		}
-		for {
-			st, d = pop(st)
-			if d == nil {
-				return
-			}
-			if d.r == n {
-				n = d
-				break
-			}
+		} else {
+			st, n = pop(st)
 		}
 	}
 }
@@ -792,8 +805,6 @@ func (t *Tree) descendTo(to interface{}, descendFunc WalkFunc) {
 	var (
 		st, n = t.maxNode()
 		less  = t.less
-
-		d *node
 	)
 	for n != nil {
 		if less(n.k, to) {
@@ -803,23 +814,13 @@ func (t *Tree) descendTo(to interface{}, descendFunc WalkFunc) {
 			return
 		}
 		if n.l != nil {
-			st = append(st, n)
 			n = n.l
 			for n.r != nil {
 				st = append(st, n)
 				n = n.r
 			}
-			continue
-		}
-		for {
-			st, d = pop(st)
-			if d == nil {
-				return
-			}
-			if d.r == n {
-				n = d
-				break
-			}
+		} else {
+			st, n = pop(st)
 		}
 	}
 }
@@ -827,10 +828,8 @@ func (t *Tree) descendTo(to interface{}, descendFunc WalkFunc) {
 // [from, to] (reversed)
 func (t *Tree) descendFromTo(from, to interface{}, descendFunc WalkFunc) {
 	var (
-		st, n = t.findNode(from)
+		st, n = t.findDescendNode(from)
 		less  = t.less
-
-		d *node
 	)
 	if n == nil {
 		if st, n = t.maxNode(); n != nil && t.less(from, n.k) {
@@ -845,52 +844,31 @@ func (t *Tree) descendFromTo(from, to interface{}, descendFunc WalkFunc) {
 			return
 		}
 		if n.l != nil {
-			st = append(st, n)
 			n = n.l
 			for n.r != nil {
 				st = append(st, n)
 				n = n.r
 			}
-			continue
-		}
-		for {
-			st, d = pop(st)
-			if d == nil {
-				return
-			}
-			if d.r == n {
-				n = d
-				break
-			}
+		} else {
+			st, n = pop(st)
 		}
 	}
 }
 
 // (-inf, +inf) (reversed)
 func (t *Tree) descend(descendFunc WalkFunc) {
-	var d *node
 	for st, n := t.maxNode(); n != nil; {
 		if !descendFunc(n.k, n.v) {
 			return
 		}
 		if n.l != nil {
-			st = append(st, n)
 			n = n.l
 			for n.r != nil {
 				st = append(st, n)
 				n = n.r
 			}
-			continue
-		}
-		for {
-			st, d = pop(st)
-			if d == nil {
-				return
-			}
-			if d.r == n {
-				n = d
-				break
-			}
+		} else {
+			st, n = pop(st)
 		}
 	}
 }
@@ -910,4 +888,50 @@ func (t *Tree) Descend(from, to interface{}, descendFunc WalkFunc) {
 	default: // [from, to]
 		t.descendFromTo(from, to, descendFunc)
 	}
+}
+
+type Printer interface {
+	Add(string) Printer
+}
+
+func (n *node) print(pr Printer) {
+	if n == nil {
+		return
+	}
+	if n.l != nil {
+		var ln Printer
+		if n.l.isRed() {
+			ln = pr.Add(aurora.Red(fmt.Sprint("l", n.l.k)).Bold().String())
+		} else {
+			ln = pr.Add(aurora.Blue(fmt.Sprint("l", n.l.k)).Bold().String())
+		}
+		n.l.print(ln)
+	}
+	if n.r != nil {
+		var rn Printer
+		if n.l.isRed() {
+			rn = pr.Add(aurora.Red(fmt.Sprint("r", n.r.k)).Bold().String())
+		} else {
+			rn = pr.Add(aurora.Blue(fmt.Sprint("r", n.r.k)).Bold().String())
+		}
+		n.r.print(rn)
+	}
+}
+
+func (t *Tree) Print(pr Printer) {
+	if t.r == nil {
+		pr.Add("<nil>")
+		return
+	}
+	var rp Printer
+	if t.r.isBlack() {
+		rp = pr.Add(
+			aurora.Blue(fmt.Sprintf("%d (%d)", t.r.k, t.size)).Bold().String(),
+		)
+	} else {
+		rp = pr.Add(
+			aurora.Red(fmt.Sprintf("%d (%d)", t.r.k, t.size)).Bold().String(),
+		)
+	}
+	t.r.print(rp)
 }

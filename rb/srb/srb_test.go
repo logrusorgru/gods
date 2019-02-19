@@ -27,6 +27,7 @@ package srb
 
 import (
 	"fmt"
+	"github.com/disiqueira/gotree"
 	"math/rand"
 	"testing"
 )
@@ -128,6 +129,8 @@ func TestTree_Ins(t *testing.T) {
 	for _, r := range Ranges {
 		tr := newNatiral()
 
+		verbose = false
+
 		for _, i := range r {
 			p, ok := tr.Ins(i, i)
 			if ok == false {
@@ -148,10 +151,10 @@ func TestTree_Ins(t *testing.T) {
 		for _, i := range r {
 			p, ok := tr.Ins(i, 0)
 			if ok == true {
-				t.Error("ok is true")
+				t.Error("ok is true", i)
 			}
 			if j, ok := p.(int); !ok {
-				t.Error("p is not int")
+				t.Error("p is not int", p, i)
 			} else if j != i {
 				t.Error("p is not", i, j)
 			}
@@ -374,6 +377,14 @@ func TestTree_Get(t *testing.T) {
 
 }
 
+type Print struct {
+	gotree.Tree
+}
+
+func (p *Print) Add(name string) Printer {
+	return &Print{p.Tree.Add(name)}
+}
+
 func TestTree_Del(t *testing.T) {
 	// Del(k interface{}) (v interface{}, ok bool)
 
@@ -389,6 +400,7 @@ func TestTree_Del(t *testing.T) {
 		}
 
 		for _, i := range r {
+			t.Log(i)
 			v, ok := tr.Del(i)
 			if ok == false {
 				t.Error("ok is false", i, rs(r))
@@ -401,6 +413,12 @@ func TestTree_Del(t *testing.T) {
 			if t.Failed() {
 				return
 			}
+			////////////////////////////////////////////////////////////////////
+			var tree = &Print{gotree.New("rb")}
+			tr.Print(tree)
+			t.Log(tree.Print())
+			t.Fatal("fatality")
+			////////////////////////////////////////////////////////////////////
 		}
 
 		if tr.Size() != 0 {
@@ -659,7 +677,7 @@ func TestTree_Ascend(t *testing.T) {
 				return true
 			})
 			if called != tr.Size() {
-				t.Error("wrong called", called)
+				t.Error("wrong called", called, tr.Size())
 			}
 			called = 0
 			tr.Ascend(0, 0, func(k, v interface{}) bool {
@@ -817,6 +835,7 @@ func TestTree_Ascend(t *testing.T) {
 			}
 			called = from
 			tr.Ascend(from, to, func(k, v interface{}) bool {
+				t.Log(k)
 				if k != v {
 					t.Fatal("k is not v")
 				}

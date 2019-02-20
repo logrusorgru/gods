@@ -27,7 +27,6 @@ package srb
 
 import (
 	"fmt"
-	"github.com/disiqueira/gotree"
 	"math/rand"
 	"testing"
 )
@@ -128,8 +127,6 @@ func TestTree_Ins(t *testing.T) {
 
 	for _, r := range Ranges {
 		tr := newNatiral()
-
-		verbose = false
 
 		for _, i := range r {
 			p, ok := tr.Ins(i, i)
@@ -376,23 +373,6 @@ func TestTree_Get(t *testing.T) {
 	}
 
 }
-
-type Print struct {
-	gotree.Tree
-}
-
-func (p *Print) Add(name string) Printer {
-	return &Print{p.Tree.Add(name)}
-}
-
-// if index > 3 {
-// 	////////////////////////////////////////////////////////////////
-// 	var pt = &Print{gotree.New("red-black")}
-// 	tr.Print(pt)
-// 	fmt.Println(pt.Print())
-// 	t.Fatal("fatality")
-// 	////////////////////////////////////////////////////////////////
-// }
 
 func TestTree_Del(t *testing.T) {
 	// Del(k interface{}) (v interface{}, ok bool)

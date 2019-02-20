@@ -25,11 +25,6 @@
 
 package srb
 
-import (
-	"fmt"
-	"github.com/logrusorgru/aurora"
-)
-
 type color bool
 
 const (
@@ -151,14 +146,6 @@ func New(less LessFunc, equal EqualFunc, zero ZeroFunc) (t *Tree) {
 	return
 }
 
-var verbose bool
-
-func print(args ...interface{}) {
-	if verbose {
-		fmt.Println(args...)
-	}
-}
-
 // findInsertNode finds node to insert to
 func (t *Tree) findInsertNode(st []*node, k interface{}) ([]*node, *node) {
 	var (
@@ -205,18 +192,15 @@ func (t *Tree) isRoot(n *node) bool {
 }
 
 func (t *Tree) rightRotate(st []*node, n *node) {
-	println("rightRotate", len(st), n.k.(int))
 	var (
 		pivot = n.l
 		d     *node
 	)
 	st, d = pop(st)
 	if d == nil {
-		println("rightRotate d is nil")
 		t.r = pivot
 		pivot.c = black
 	} else {
-		println("rightRotate d:", d.k.(int))
 		if d.l == n {
 			d.l = pivot
 		} else {
@@ -228,18 +212,15 @@ func (t *Tree) rightRotate(st []*node, n *node) {
 }
 
 func (t *Tree) leftRotate(st []*node, n *node) {
-	println("leftRotate", len(st), n.k.(int))
 	var (
 		pivot = n.r
 		d     *node
 	)
 	st, d = pop(st)
 	if d == nil {
-		println("leftRotate d is nil")
 		t.r = pivot
 		pivot.c = black
 	} else {
-		println("leftRotate d:", d.k.(int))
 		if d.l == n {
 			d.l = pivot
 		} else {
@@ -404,66 +385,46 @@ func (t *Tree) Add(k, v interface{}) (ok bool) {
 }
 
 func (t *Tree) fixDoubleBlack(st []*node, x *node) {
-	println("fixDoubleBlack", len(st), x.k.(int))
 	var s, d *node
 	for {
-		println("fixDoubleBlack: loop", len(st), x.k.(int))
 		if t.isRoot(x) {
 			return
 		}
 		st, d = pop(st)
 		s = d.opposite(x)
 		if s == nil {
-			println("fixDoubleBlack: s is nil")
 			x = d
 			continue // no recursion
 		}
-		println("fixDoubleBlack: s is ", s.k.(int), s.c)
 		if s.isRed() {
-			println("fixDoubleBlack: s is red")
 			d.c = red
 			s.c = black
 			if d.r == s {
-				println("right is:", d.r.k.(int))
 				t.leftRotate(st, d)
-				st = append(st, s) // stack has been changed
 			} else {
-				println("left is:", d.l.k.(int))
 				t.rightRotate(st, d)
-				st = append(st, s) // stack has been changed
 			}
-			st = append(st, d) // for the pop
-			println("continue (1)")
+			st = append(st, s, d)
 			continue // no recursion
 		}
 		// the s is black
 		if s.hasRedChild() {
-			println("fixDoubleBlack: s has red child")
 			if s.r.isRed() {
-				println("fixDoubleBlack: right")
 				if d.l == s {
-					println("fixDoubleBlack: right->left")
 					s.r.c = d.c
 					t.leftRotate(append(st, d), s)
 					t.rightRotate(st, d)
 				} else {
-					println("fixDoubleBlack: right->right")
 					s.r.c = s.c
 					s.c = d.c
 					t.leftRotate(st, d)
 				}
 			} else { // left is red
-				println("fixDoubleBlack: left")
 				if d.l == s {
-					println("fixDoubleBlack: left->left")
 					s.l.c = s.c
 					s.c = d.c
-					for i, x := range st {
-						println("stack", i, x.k.(int))
-					}
 					t.rightRotate(st, d)
 				} else {
-					println("fixDoubleBlack: left->right")
 					s.l.c = d.c
 					t.rightRotate(append(st, d), s)
 					t.leftRotate(st, d)
@@ -472,29 +433,23 @@ func (t *Tree) fixDoubleBlack(st []*node, x *node) {
 			d.c = black
 			return
 		}
-		println("fixDoubleBlack: s is black and has no red child", s.k.(int))
 		s.c = red
-		println("set red", s.k.(int))
 		if d.c == black {
-			println("fixDoubleBlack: s is black, has no red child, d is black")
 			x = d
 			continue
 		}
 		d.c = black
-		println("set black", d.k.(int))
 		return
 	}
 }
 
 // delete and balance the Tree
 func (t *Tree) delBalancing(st []*node, v *node) {
-	println("delBalancing", len(st), v.k.(int))
 	var (
 		d, u *node
 		ss   []*node
 	)
 	for {
-		println("delBalancing: loop", len(st), v.k.(int))
 		ss, u = v.successor()
 		_, d = pop(st) // don't overwrite the st
 		if u == nil {
@@ -503,7 +458,6 @@ func (t *Tree) delBalancing(st []*node, v *node) {
 				return
 			}
 			if v.isBlack() {
-				println("node to delete is black")
 				t.fixDoubleBlack(st, v)
 			} else {
 				if s := d.opposite(v); s != nil {
@@ -514,7 +468,6 @@ func (t *Tree) delBalancing(st []*node, v *node) {
 			return
 		}
 		if v.l == nil || v.r == nil {
-			println("has nil child")
 			if t.isRoot(v) {
 				v.copy(u)
 				v.l, v.r = nil, nil
@@ -522,14 +475,12 @@ func (t *Tree) delBalancing(st []*node, v *node) {
 			}
 			d.replaceChild(v, u)
 			if u.isBlack() && v.isBlack() {
-				println("both are black (2)")
 				t.fixDoubleBlack(st, u)
 				return
 			}
 			u.c = black
 			return
 		}
-		println("tail")
 		v.copy(u)
 		v = u                  // no recursion
 		st = append(st, ss...) // change st
@@ -550,13 +501,10 @@ func (t *Tree) Get(k interface{}) (v interface{}, ok bool) {
 }
 
 func (t *Tree) Del(k interface{}) (v interface{}, ok bool) {
-	println("Del", k.(int))
 	var st, n = t.findNode(k)
 	if n == nil {
-		println("Del: not found", k.(int))
 		return nil, false // does not exist
 	}
-	println("Del: found", k.(int))
 	v, ok = n.v, true
 	t.size--              //reduce
 	t.delBalancing(st, n) // delete & balance
@@ -901,49 +849,4 @@ func (t *Tree) Descend(from, to interface{}, descendFunc WalkFunc) {
 	default: // [from, to]
 		t.descendFromTo(from, to, descendFunc)
 	}
-}
-
-type Printer interface {
-	Add(string) Printer
-}
-
-var already map[*node]struct{}
-
-func (n *node) print(d *node, pr Printer) {
-	if n == nil {
-		return
-	}
-	if _, ok := already[n]; ok {
-		println("already", n.k.(int), d.k.(int))
-		panic("")
-		return
-	}
-	//println("print node", n.k.(int))
-	var ds string
-	if d == nil {
-		ds = ". "
-	} else if d.l == n {
-		ds = "l "
-	} else {
-		ds = "r "
-	}
-	s := fmt.Sprint(ds, n.k)
-	var sub Printer
-	if n.isRed() {
-		sub = pr.Add(aurora.Red(s).String())
-	} else {
-		sub = pr.Add(aurora.Blue(s).Bold().String())
-	}
-	n.l.print(n, sub)
-	n.r.print(n, sub)
-
-	already[n] = struct{}{}
-}
-
-func (t *Tree) Print(pr Printer) {
-	already = make(map[*node]struct{})
-
-	s := fmt.Sprintf("[%d]", t.size)
-	tree := pr.Add(s)
-	t.r.print(nil, tree)
 }

@@ -385,6 +385,15 @@ func (p *Print) Add(name string) Printer {
 	return &Print{p.Tree.Add(name)}
 }
 
+// if index > 3 {
+// 	////////////////////////////////////////////////////////////////
+// 	var pt = &Print{gotree.New("red-black")}
+// 	tr.Print(pt)
+// 	fmt.Println(pt.Print())
+// 	t.Fatal("fatality")
+// 	////////////////////////////////////////////////////////////////
+// }
+
 func TestTree_Del(t *testing.T) {
 	// Del(k interface{}) (v interface{}, ok bool)
 
@@ -413,12 +422,6 @@ func TestTree_Del(t *testing.T) {
 			if t.Failed() {
 				return
 			}
-			////////////////////////////////////////////////////////////////////
-			var tree = &Print{gotree.New("rb")}
-			tr.Print(tree)
-			t.Log(tree.Print())
-			t.Fatal("fatality")
-			////////////////////////////////////////////////////////////////////
 		}
 
 		if tr.Size() != 0 {

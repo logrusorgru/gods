@@ -468,7 +468,7 @@ func (t *Tree) delBalancing(v *node) {
 				t.r = nil
 				return
 			}
-			if u.isBlack() && v.isBlack() {
+			if v.isBlack() {
 				t.fixDoubleBlack(v)
 			} else {
 				if s := v.sibling(); s != nil {

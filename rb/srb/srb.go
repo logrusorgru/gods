@@ -205,15 +205,18 @@ func (t *Tree) isRoot(n *node) bool {
 }
 
 func (t *Tree) rightRotate(st []*node, n *node) {
+	println("rightRotate", len(st), n.k.(int))
 	var (
 		pivot = n.l
 		d     *node
 	)
 	st, d = pop(st)
 	if d == nil {
+		println("rightRotate d is nil")
 		t.r = pivot
 		pivot.c = black
 	} else {
+		println("rightRotate d:", d.k.(int))
 		if d.l == n {
 			d.l = pivot
 		} else {
@@ -221,20 +224,22 @@ func (t *Tree) rightRotate(st []*node, n *node) {
 		}
 	}
 	n.l = pivot.r
-	d = pivot
 	pivot.r = n
 }
 
 func (t *Tree) leftRotate(st []*node, n *node) {
+	println("leftRotate", len(st), n.k.(int))
 	var (
 		pivot = n.r
 		d     *node
 	)
 	st, d = pop(st)
 	if d == nil {
+		println("leftRotate d is nil")
 		t.r = pivot
 		pivot.c = black
 	} else {
+		println("leftRotate d:", d.k.(int))
 		if d.l == n {
 			d.l = pivot
 		} else {
@@ -242,7 +247,6 @@ func (t *Tree) leftRotate(st []*node, n *node) {
 		}
 	}
 	n.r = pivot.l
-	d = pivot
 	pivot.l = n
 }
 
@@ -420,10 +424,16 @@ func (t *Tree) fixDoubleBlack(st []*node, x *node) {
 			d.c = red
 			s.c = black
 			if d.r == s {
+				println("right is:", d.r.k.(int))
 				t.leftRotate(st, d)
+				st = append(st, s) // stack has been changed
 			} else {
+				println("left is:", d.l.k.(int))
 				t.rightRotate(st, d)
+				st = append(st, s) // stack has been changed
 			}
+			st = append(st, d) // for the pop
+			println("continue (1)")
 			continue // no recursion
 		}
 		// the s is black
@@ -448,6 +458,9 @@ func (t *Tree) fixDoubleBlack(st []*node, x *node) {
 					println("fixDoubleBlack: left->left")
 					s.l.c = s.c
 					s.c = d.c
+					for i, x := range st {
+						println("stack", i, x.k.(int))
+					}
 					t.rightRotate(st, d)
 				} else {
 					println("fixDoubleBlack: left->right")
@@ -460,14 +473,14 @@ func (t *Tree) fixDoubleBlack(st []*node, x *node) {
 			return
 		}
 		println("fixDoubleBlack: s is black and has no red child", s.k.(int))
-		s.setRed()
+		s.c = red
 		println("set red", s.k.(int))
-		if d.isBlack() {
+		if d.c == black {
 			println("fixDoubleBlack: s is black, has no red child, d is black")
 			x = d
 			continue
 		}
-		d.setBlack()
+		d.c = black
 		println("set black", d.k.(int))
 		return
 	}
@@ -489,8 +502,8 @@ func (t *Tree) delBalancing(st []*node, v *node) {
 				t.r = nil
 				return
 			}
-			if u.isBlack() && v.isBlack() {
-				println("both are black")
+			if v.isBlack() {
+				println("node to delete is black")
 				t.fixDoubleBlack(st, v)
 			} else {
 				if s := d.opposite(v); s != nil {
@@ -894,44 +907,43 @@ type Printer interface {
 	Add(string) Printer
 }
 
-func (n *node) print(pr Printer) {
+var already map[*node]struct{}
+
+func (n *node) print(d *node, pr Printer) {
 	if n == nil {
 		return
 	}
-	if n.l != nil {
-		var ln Printer
-		if n.l.isRed() {
-			ln = pr.Add(aurora.Red(fmt.Sprint("l", n.l.k)).Bold().String())
-		} else {
-			ln = pr.Add(aurora.Blue(fmt.Sprint("l", n.l.k)).Bold().String())
-		}
-		n.l.print(ln)
+	if _, ok := already[n]; ok {
+		println("already", n.k.(int), d.k.(int))
+		panic("")
+		return
 	}
-	if n.r != nil {
-		var rn Printer
-		if n.l.isRed() {
-			rn = pr.Add(aurora.Red(fmt.Sprint("r", n.r.k)).Bold().String())
-		} else {
-			rn = pr.Add(aurora.Blue(fmt.Sprint("r", n.r.k)).Bold().String())
-		}
-		n.r.print(rn)
+	//println("print node", n.k.(int))
+	var ds string
+	if d == nil {
+		ds = ". "
+	} else if d.l == n {
+		ds = "l "
+	} else {
+		ds = "r "
 	}
+	s := fmt.Sprint(ds, n.k)
+	var sub Printer
+	if n.isRed() {
+		sub = pr.Add(aurora.Red(s).String())
+	} else {
+		sub = pr.Add(aurora.Blue(s).Bold().String())
+	}
+	n.l.print(n, sub)
+	n.r.print(n, sub)
+
+	already[n] = struct{}{}
 }
 
 func (t *Tree) Print(pr Printer) {
-	if t.r == nil {
-		pr.Add("<nil>")
-		return
-	}
-	var rp Printer
-	if t.r.isBlack() {
-		rp = pr.Add(
-			aurora.Blue(fmt.Sprintf("%d (%d)", t.r.k, t.size)).Bold().String(),
-		)
-	} else {
-		rp = pr.Add(
-			aurora.Red(fmt.Sprintf("%d (%d)", t.r.k, t.size)).Bold().String(),
-		)
-	}
-	t.r.print(rp)
+	already = make(map[*node]struct{})
+
+	s := fmt.Sprintf("[%d]", t.size)
+	tree := pr.Add(s)
+	t.r.print(nil, tree)
 }
